@@ -1,7 +1,10 @@
 
 # This code detects different colors and tracks their motion in space.
 # You can either load a video or get input from a webcam.
-# I'm adding a graph that can track and plot objects moving in real time.
+
+# Revision: I'm adding a graph that can track and plot objects moving in real time.
+# I added calibration component to correct for camera tilt w.r.t to the floor.
+# Object coordinate will be displayed in real time on the plot.
 
 
 # import the necessary packages
@@ -10,8 +13,53 @@ import argparse
 import imutils
 import cv2
 import matplotlib.pyplot as plt
+import yaml
  
- 
+
+
+# Define the calibration file (YAML format)
+mypath = 'C:/Users/ananda.sidarta/Documents/myPython/'
+myfile = 'myRealSense.yaml'
+
+# Load calibration file and convert calibration params as arrays.
+with open(mypath+myfile) as f:
+    data = yaml.load(f)
+    print("Loading the calibration file....")
+    matrix  = np.array( data['homo_matrix'] )    # Homogenous matrix
+    cam_mat = np.array( data['cam_matrix'] )  # Intrinsic matrix
+
+
+# This function performs back-projection to the world coordinate system through analytical solutions.
+# The purpose is to be able to know (x,y) is the real world. Note that the world position is w.r.t the 
+# origin identified during the calibration with a chessboard.
+
+def backProject(x, y):  # The function, I don't return any value?!
+        ## Stage 0: Prepare the necessary variables
+        t = matrix[0:3,3]
+        Rmat = matrix[0:3,0:3]
+        Rzx = Rmat[0,2]
+        Rzy = Rmat[1,2]
+        Rzz = Rmat[2,2]
+        cx = cam_mat[0,2]
+        cy = cam_mat[1,2]
+        fx = cam_mat[0,0]
+        fy = cam_mat[1,1]
+        ## Stage 1: Using planar equation to solve Zc, we compute RHS first
+        RHS = np.dot(np.array([Rzx,Rzy,Rzz]), t)
+        LHS = Rzx*(x-cx)/fx + Rzy*(y-cy)/fy + Rzz
+        Zc = RHS/LHS
+        ## Stage 2: Compute Xc, Yc in terms of Zc
+        Xc = Zc*(x - cx)/fx
+        Yc = Zc*(y - cy)/fy
+        worldcam = np.array([Xc,Yc,Zc])  # World coordinate in camera system
+        #print("World position ", worldcam)
+        ## Stage 3: Calculate position in world reference
+        Rmat_inv = np.linalg.inv( Rmat )     # Inverse of Rmat
+        worldpos = np.matmul(Rmat_inv,(worldcam-t))
+        #print("World position ", worldpos)
+        worldposition.append(worldpos[0:2])
+
+
 # construct the argument parse and parse the arguments
 ap = argparse.ArgumentParser()
 ap.add_argument("-v", "--video", help="path to the (optional) video file")
@@ -20,11 +68,11 @@ args = vars(ap.parse_args())
  
 
 # define the lower and upper boundaries of the colors in the HSV color space
-lower = {'red':(0,140,160),'green':(30,85,6),'blue':(97,100,117),'yellow':(23,59,119)}
-upper = {'red':(35,205,205),'green':(165,255,255),'blue':(117,255,255),'yellow':(54,255,255)}
+lower = {'red':(150,140,220) }
+upper = {'red':(190,190,245) }
 
 # define standard colors for circle around the object (RGB)
-colors = {'red':(0,0,255), 'green':(0,255,0), 'blue':(255,0,0), 'yellow':(255,255,0)}
+colors = {'red':(0,0,255)}
  #pts = deque(maxlen=args["buffer"])
  
 # if a video path was not supplied, grab the reference to the webcam
@@ -37,10 +85,9 @@ else:
 
 # declare empty dictionary to keep trajectory data (how many colors?)
 traj = {}
-for key, value in upper.items(): traj[key]=[] 
+for i in range(1,5): traj[i]=[] 
 
 t = float(0)
-
 
 
 
@@ -76,32 +123,34 @@ while True:
         cnts, _ = cv2.findContours(mask.copy(), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         center = None
         connect = connect and (len(cnts)>0)
+        #print ('I see', len(cnts), 'circles')
         
         # only proceed if at least one contour was found
         if len(cnts) > 0:
-            # find the largest contour in the mask, then use it to compute 
-            # the minimum enclosing circle and centroid
-            c = max(cnts, key=cv2.contourArea)
-            ((x, y), radius) = cv2.minEnclosingCircle(c)
-            M = cv2.moments(c)
-            center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
-            #print("For %s color: %s" %(key,center))
-
-            # keep the center location of the contours in the dictionary
-            traj[key].append(center)
-
-            # only proceed if the radius meets a minimum size. Correct this value for your object's size
-            if radius > 0.5:
-                # draw the circle and centroid on the frame,
-                # then update the list of tracked points
-                cv2.circle(frame, (int(x), int(y)), int(radius), colors[key], 2)
-                cv2.putText(frame, key, (int(x-radius),int(y-radius)), 
+            circle_id = 1
+            # cycle through the contours that have been identified
+            for c in cnts:
+                ((x, y), radius) = cv2.minEnclosingCircle(c)
+                M = cv2.moments(c)
+                center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
+                #print("For %s color: %s" %(key,center))
+                
+                # keep the center location of the contours in the dictionary
+                traj[circle_id].append(center)
+                circle_id += 1
+                
+                # only proceed if the radius meets a minimum size. 
+                if radius > 0.5:
+                    # draw the circle and centroid on the frame,
+                    # then update the list of tracked points
+                    cv2.circle(frame, (int(x), int(y)), int(radius), colors[key], 2)
+                    cv2.putText(frame, key, (int(x-radius),int(y-radius)), 
                             cv2.FONT_HERSHEY_SIMPLEX, 0.6,colors[key],2)
 
-            # create a plot showing the movement of the colored objects...
-            # this should be updated in real-time.
-            plt.scatter(*center, s=20, color=key)
-            plt.pause(0.01)
+                # create a plot showing the movement of the colored objects...
+                # this should be updated in real-time.
+                plt.scatter(*center, s=20, color=key)
+                plt.pause(0.01)
     
     # redraw then clear the current entire figure with the object;
     # have to do this to create updating effect!
@@ -136,6 +185,7 @@ while True:
         
 #plt.show()  # Show the plot object
  
+
 
 # cleanup the camera and close any open windows
 camera.release()
