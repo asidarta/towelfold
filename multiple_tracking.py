@@ -37,7 +37,7 @@ else:
 
 # declare empty dictionary to keep trajectory data (how many colors?)
 traj = {}
-for key, value in upper.items(): traj[key]=[] 
+for color, value in upper.items(): traj[color]=[] 
 
 t = float(0)
 
@@ -62,12 +62,12 @@ while True:
     connect = True
 
     # for each color in dictionary, check object in the frame
-    for key, value in upper.items():
+    for color, value in upper.items():
         # construct a mask for the specified color from dictionary, 
         # then perform a series of dilations and erosions to remove 
         # any small blobs left in the mask
         kernel = np.ones((9,9),np.uint8)
-        mask = cv2.inRange(hsv, lower[key], upper[key])
+        mask = cv2.inRange(hsv, lower[color], upper[color])
         mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
         mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
                
@@ -85,29 +85,18 @@ while True:
             ((x, y), radius) = cv2.minEnclosingCircle(c)
             M = cv2.moments(c)
             center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
-            #print("For %s color: %s" %(key,center))
+            #print("For %s color: %s" %(color,center))
 
             # keep the center location of the contours in the dictionary
-            traj[key].append(center)
+            traj[color].append(center)
 
             # only proceed if the radius meets a minimum size. Correct this value for your object's size
             if radius > 0.5:
                 # draw the circle and centroid on the frame,
                 # then update the list of tracked points
-                cv2.circle(frame, (int(x), int(y)), int(radius), colors[key], 2)
-                cv2.putText(frame, key, (int(x-radius),int(y-radius)), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.6,colors[key],2)
-
-            # create a plot showing the movement of the colored objects...
-            # this should be updated in real-time.
-            plt.scatter(*center, s=20, color=key)
-            plt.pause(0.01)
-    
-    # redraw then clear the current entire figure with the object;
-    # have to do this to create updating effect!
-    plt.draw()
-    plt.clf();
-    plt.axis([0, 600, 0, 600])
+                cv2.circle(frame, (int(x), int(y)), int(radius), colors[color], 2)
+                cv2.putText(frame, color, (int(x-radius),int(y-radius)), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6,colors[color],2)
     
     # create a line connecting two colors, if only both colors appear
     #if connect :
@@ -128,13 +117,13 @@ while True:
 
 # after quiting, plot the trajectory only if there is any to plot
 # draw each color first before showing them simultaneously
-#for key, value in traj.items():
-#    if len(value) > 0:
-#        plt.scatter(*zip(*traj[key]), s=5, color=key)
-#        plt.xlim([0, 600])
-#        plt.ylim([0, 600])
+for color, value in traj.items():
+    if len(value) > 0:
+        plt.scatter(*zip(*traj[color]), s=5, color=color)
+        plt.xlim([0, 600])
+        plt.ylim([0, 600])
         
-#plt.show()  # Show the plot object
+plt.show()  # Show the plot object
  
 
 # cleanup the camera and close any open windows

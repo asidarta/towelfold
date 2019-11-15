@@ -37,7 +37,7 @@ else:
 
 # declare empty dictionary to keep trajectory data (how many colors?)
 traj = {}
-for key, value in upper.items(): traj[key]=[] 
+for item, value in upper.items(): traj[item]=[] 
 
 # prepare the plot properties
 area = 0
@@ -63,12 +63,12 @@ while True:
     blurred = cv2.GaussianBlur(hsv, (11, 11), 0)
 
     # for each color in dictionary, check object in the frame
-    for key, value in upper.items():
+    for item, value in upper.items():
         # construct a mask for the specified color from dictionary, 
         # then perform a series of dilations and erosions to remove 
         # any small blobs left in the mask
         kernel = np.ones((9,9),np.uint8)
-        mask = cv2.inRange(blurred, lower[key], upper[key])
+        mask = cv2.inRange(blurred, lower[item], upper[item])
         mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
         mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
                
@@ -92,8 +92,8 @@ while True:
 
             if area > 100:# and len(approx) == 4:
             # if exceeds minimum size, draw perimeter according to shape
-                cv2.drawContours(frame, [approx], 0, colors[key], 2)
-                cv2.putText(frame, key, (x, y-10), font, 0.5, colors[key])
+                cv2.drawContours(frame, [approx], 0, colors[item], 2)
+                cv2.putText(frame, item, (x, y-10), font, 0.5, colors[item])
  
         # create a plot showing the area of the towel surface
         #plt.plot(t,area,'bo',markersize=2)

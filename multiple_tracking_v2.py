@@ -34,30 +34,26 @@ with open(mypath+myfile) as f:
 # origin identified during the calibration with a chessboard.
 
 def backProject(x, y):  # The function, I don't return any value?!
-        ## Stage 0: Prepare the necessary variables
-        t = matrix[0:3,3]
-        Rmat = matrix[0:3,0:3]
-        Rzx = Rmat[0,2]
-        Rzy = Rmat[1,2]
-        Rzz = Rmat[2,2]
-        cx = cam_mat[0,2]
-        cy = cam_mat[1,2]
-        fx = cam_mat[0,0]
-        fy = cam_mat[1,1]
-        ## Stage 1: Using planar equation to solve Zc, we compute RHS first
-        RHS = np.dot(np.array([Rzx,Rzy,Rzz]), t)
-        LHS = Rzx*(x-cx)/fx + Rzy*(y-cy)/fy + Rzz
-        Zc = RHS/LHS
-        ## Stage 2: Compute Xc, Yc in terms of Zc
-        Xc = Zc*(x - cx)/fx
-        Yc = Zc*(y - cy)/fy
-        worldcam = np.array([Xc,Yc,Zc])  # World coordinate in camera system
-        #print("World position ", worldcam)
-        ## Stage 3: Calculate position in world reference
-        Rmat_inv = np.linalg.inv( Rmat )     # Inverse of Rmat
-        worldpos = np.matmul(Rmat_inv,(worldcam-t))
-        #print("World position ", worldpos)
-        worldposition.append(worldpos[0:2])
+    ## Stage 0: Prepare the necessary variables
+    t = matrix[0:3,3]
+    Rmat = matrix[0:3,0:3]
+    Rzx, Rzy, Rzz = Rmat[0:3,2]
+    cx, cy = cam_mat[0:2,2]
+    fx, fy = cam_mat[0,0], cam_mat[1,1]
+    ## Stage 1: Using planar equation to solve Zc, we compute RHS first
+    RHS = np.dot(np.array([Rzx,Rzy,Rzz]), t)
+    LHS = Rzx*(x-cx)/fx + Rzy*(y-cy)/fy + Rzz
+    Zc = RHS/LHS
+    ## Stage 2: Compute Xc, Yc in terms of Zc
+    Xc = Zc*(x - cx)/fx
+    Yc = Zc*(y - cy)/fy
+    worldcam = np.array([Xc,Yc,Zc])  # World coordinate in camera system
+    #print("World position ", worldcam)
+    ## Stage 3: Calculate position in world reference
+    Rmat_inv = np.linalg.inv( Rmat )     # Inverse of Rmat
+    worldpos = np.matmul(Rmat_inv,(worldcam-t))
+    #print("World position ", worldpos)
+    worldposition.append(worldpos[0:2])
 
 
 # construct the argument parse and parse the arguments
@@ -68,8 +64,10 @@ args = vars(ap.parse_args())
  
 
 # define the lower and upper boundaries of the colors in the HSV color space
-lower = {'red':(150,140,220) }
-upper = {'red':(190,190,245) }
+#lower = {'red':(150,140,220) }
+#upper = {'red':(190,190,245) }
+lower = {'red':(0,140,120) }
+upper = {'red':(20,200,150) }
 
 # define standard colors for circle around the object (RGB)
 colors = {'red':(0,0,255)}
@@ -101,7 +99,7 @@ while True:
         break
   
     # resize the frame, blur it, and convert it to the HSV color space
-    frame = imutils.resize(frame, width=600)
+    frame = imutils.resize(frame, width=1100)
     blurred = cv2.GaussianBlur(frame, (11, 11), 0)
     hsv = cv2.cvtColor(blurred, cv2.COLOR_BGR2HSV)
 
@@ -109,12 +107,12 @@ while True:
     connect = True
 
     # for each color in dictionary, check object in the frame
-    for key, value in upper.items():
+    for color, value in upper.items():
         # construct a mask for the specified color from dictionary, 
         # then perform a series of dilations and erosions to remove 
         # any small blobs left in the mask
         kernel = np.ones((9,9),np.uint8)
-        mask = cv2.inRange(hsv, lower[key], upper[key])
+        mask = cv2.inRange(hsv, lower[color], upper[color])
         mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
         mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
                
@@ -133,7 +131,7 @@ while True:
                 ((x, y), radius) = cv2.minEnclosingCircle(c)
                 M = cv2.moments(c)
                 center = (int(M["m10"] / M["m00"]), int(M["m01"] / M["m00"]))
-                #print("For %s color: %s" %(key,center))
+                #print("For %s color: %s" %(color,center))
                 
                 # keep the center location of the contours in the dictionary
                 traj[circle_id].append(center)
@@ -143,13 +141,13 @@ while True:
                 if radius > 0.5:
                     # draw the circle and centroid on the frame,
                     # then update the list of tracked points
-                    cv2.circle(frame, (int(x), int(y)), int(radius), colors[key], 2)
-                    cv2.putText(frame, key, (int(x-radius),int(y-radius)), 
-                            cv2.FONT_HERSHEY_SIMPLEX, 0.6,colors[key],2)
+                    cv2.circle(frame, (int(x), int(y)), int(radius), colors[color], 2)
+                    cv2.putText(frame, color, (int(x-radius),int(y-radius)), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.6,colors[color],2)
 
                 # create a plot showing the movement of the colored objects...
                 # this should be updated in real-time.
-                plt.scatter(*center, s=20, color=key)
+                plt.scatter(*center, s=20, color=color)
                 plt.pause(0.01)
     
     # redraw then clear the current entire figure with the object;
@@ -173,18 +171,6 @@ while True:
         #print(traj)
         break
 
-
-
-# after quiting, plot the trajectory only if there is any to plot
-# draw each color first before showing them simultaneously
-#for key, value in traj.items():
-#    if len(value) > 0:
-#        plt.scatter(*zip(*traj[key]), s=5, color=key)
-#        plt.xlim([0, 600])
-#        plt.ylim([0, 600])
-        
-#plt.show()  # Show the plot object
- 
 
 
 # cleanup the camera and close any open windows
