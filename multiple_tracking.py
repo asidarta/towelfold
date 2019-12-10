@@ -29,7 +29,7 @@ colors = {'red':(0,0,255), 'green':(0,255,0), 'blue':(255,0,0), 'yellow':(255,25
  
 # if a video path was not supplied, grab the reference to the webcam
 if not args.get("video", False):
-    camera = cv2.VideoCapture(1)
+    camera = cv2.VideoCapture(2)
 # otherwise, grab a reference to the video file
 else:
     camera = cv2.VideoCapture(args["video"])
